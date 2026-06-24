@@ -1,0 +1,110 @@
+import numpy as np
+import sympy as sp
+from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
+from IPython.display import display, Math
+import re
+from collections import Counter
+
+# --- Input Configuration ---
+# Set mode to 'solve' to find roots of an equation
+# Set mode to 'create' to generate an equation from roots
+mode = 'create'
+
+# If mode is 'solve', provide the equation here:
+question = "x^10 - 10x^9 + 45x^8 - 120x^7 + 210x^6 - 252x^5 + 210x^4 - 120x^3 + 45x^2 - 10x + 1"
+
+# If mode is 'create', provide roots in the format 'x1=val\nx2=val...'
+roots_input = """
+x1=1
+x2=1
+x3=1
+x4=1
+x5=1
+x6=1
+x7=1
+x8=1
+x9=1
+x10=1
+x11=1
+x12=1
+"""
+
+def parse_to_expr(expr_str):
+    x = sp.symbols('x')
+    clean_str = expr_str.replace('^', '**')
+    transformations = (standard_transformations + (implicit_multiplication_application,))
+    if '=' in clean_str:
+        lhs, rhs = clean_str.split('=')
+        expr = parse_expr(f"({lhs}) - ({rhs})", transformations=transformations)
+    else:
+        expr = parse_expr(clean_str, transformations=transformations)
+    return expr
+
+def clean_num(n):
+    val = float(n)
+    if abs(val - round(val)) < 1e-9: return str(int(round(val)))
+    return f"{val:g}"
+
+def format_complex(val):
+    c = complex(val)
+    real, imag = c.real, c.imag
+    if abs(imag) < 1e-7: return clean_num(real)
+    if abs(real) < 1e-7:
+        if abs(imag - 1) < 1e-7: return "i"
+        if abs(imag + 1) < 1e-7: return "-i"
+        return f"{clean_num(imag)}i"
+    sign = "+" if imag >= 0 else "-"
+    imag_abs = abs(imag)
+    imag_part = "i" if abs(imag_abs - 1) < 1e-7 else f"{clean_num(imag_abs)}i"
+    return f"{clean_num(real)} {sign} {imag_part}"
+
+def solve_mode(expr_str):
+    x = sp.symbols('x')
+    expr = parse_to_expr(expr_str)
+    display(Math(f"\\Large {sp.latex(expr)} = 0"))
+    print()
+    root_dict = sp.roots(expr, x)
+    root_list = []
+    for root, mult in root_dict.items():
+        for _ in range(mult): root_list.append(root)
+    if not root_list: root_list = expr.nroots()
+    for i, r in enumerate(root_list):
+        display(Math(f"\\Large x_{{{i+1}}} = {format_complex(r)}"))
+
+def create_mode(input_text):
+    x = sp.symbols('x')
+    matches = re.findall(r'x\d+[:= ]*([+-]?\d*\.?\d*(?:[+-]\d*\.?\d*[ij])?)', input_text.replace(' ', ''))
+
+    roots = []
+    for m in matches:
+        if not m: continue
+        val_str = m.replace('i', 'j')
+        if val_str == 'j' or val_str == '+j': val_str = '1j'
+        if val_str == '-j': val_str = '-1j'
+        try:
+            c_val = complex(val_str)
+            sp_val = sp.nsimplify(c_val.real) + sp.I * sp.nsimplify(c_val.imag)
+            roots.append(sp_val)
+        except: continue
+
+    if not roots:
+        print("No roots found.")
+        return
+
+    # Display provided roots individually
+    for i, r in enumerate(roots):
+        display(Math(f"\\Large x_{{{i+1}}} = {format_complex(complex(r))}"))
+    print()
+
+    # Group roots by multiplicity for factored display
+    root_counts = Counter(roots)
+    factored_expr = 1
+    for root, mult in root_counts.items():
+        factored_expr *= (x - root)**mult
+
+    display(Math(f"\\Large {sp.latex(factored_expr)} = 0"))
+
+if mode == 'solve':
+    solve_mode(question)
+else:
+    create_mode(roots_input)
